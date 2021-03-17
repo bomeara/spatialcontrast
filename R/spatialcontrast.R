@@ -35,7 +35,7 @@ compare_cells_fine <- function(phy, latlon, tiprates, minlat_focal, maxlat_focal
 	phy_pruned <- ape::keep.tip(phy, taxa_to_keep)
 	target_pruned <- target_presence[taxa_to_keep]
 	comparisons <- sisters::sis_format_comparison(sisters=sisters::sis_get_sisters(phy_pruned, ncores=1), trait=target_pruned, phy=phy_pruned)
-	if(length(comparisons$nodes)<mincomparisons) {
+	if(length(comparisons$node)<mincomparisons) {
 		warning("Not enough sister pairs to compare these cells")
 		means <- as.data.frame(t(rep(NA, length(rates))))
 		colnames(means) <- c(paste0(rates, "_mean_target_minus_focal"))
@@ -50,17 +50,20 @@ compare_cells_fine <- function(phy, latlon, tiprates, minlat_focal, maxlat_focal
 		right <- comparisons$right[sister_index][[1]]
 		local_df <- data.frame(node=comparisons$node[sister_index], depth=depths[phy_pruned$edge==comparisons$node[sister_index]][1], ntax.left=comparisons$ntax.left[sister_index], ntax.right=comparisons$ntax.right[sister_index])
 		if(local_df$depth<=maxdepth) {
-			local_df <- cbind(local_df, t(compare_two_clades(left, right, tiprates=tiprates, phy_pruned=phy_pruned, rates=rates, ndraws=ndraws)))
-			if(sister_index==1) {
-				global_df <-local_df
-			} else {
-				global_df <- rbind(global_df, local_df)
+			pairwise_result <- t(compare_two_clades(left, right, tiprates=tiprates, phy_pruned=phy_pruned, rates=rates, ndraws=ndraws))
+			if(!is.na(pairwise_result[1])) {
+				local_df <- cbind(local_df,pairwise_result)
+				if(sister_index==1) {
+					global_df <-local_df
+				} else {
+					global_df <- rbind(global_df, local_df)
+				}
 			}
 		}
 	}
-
 	return(global_df)
 }
+
 
 compare_cells_coarse <- function(phy, latlon, tiprates, minlat_focal, maxlat_focal, minlon_focal, maxlon_focal, minlat_target, maxlat_target, minlon_target, maxlon_target, rates=c("turnover", "net.div", "speciation", "extinct.frac", "extinction"), ndraws=100, maxdepth=Inf, mincomparisons=3) {
 	fine_results <- compare_cells_fine(phy, latlon, tiprates, minlat_focal, maxlat_focal, minlon_focal, maxlon_focal, minlat_target, maxlat_target, minlon_target, maxlon_target, rates, ndraws, maxdepth)
@@ -73,6 +76,12 @@ compare_cells_coarse <- function(phy, latlon, tiprates, minlat_focal, maxlat_foc
 compare_two_clades <- function(left, right, tiprates, phy_pruned, rates=c("turnover", "net.div", "speciation", "extinct.frac", "extinction"), ndraws=100) {
 	tiprates_left <- tiprates[tiprates$taxon %in% phy_pruned$tip.label[left],]
 	tiprates_right <- tiprates[tiprates$taxon %in% phy_pruned$tip.label[right],]
+	if(nrow(tiprates_right)<1 | nrow(tiprates_left)<1) {
+		means <- as.data.frame(t(rep(NA, length(rates))))
+		colnames(means) <- c(paste0(rates, "_mean_target_minus_focal"))
+		sds <- as.data.frame(t(rep(NA, length(rates))))
+		return(cbind(means, sds))
+	}
 	local_results <- data.frame(matrix(NA, nrow=ndraws, ncol=length(rates)))
 	for (sample_index in sequence(ndraws)) {
 		left_sample <- sample.int(nrow(tiprates_left),1)
@@ -86,3 +95,16 @@ compare_two_clades <- function(left, right, tiprates, phy_pruned, rates=c("turno
 	return(summary_results)
 }
 
+#' compare_rook(phy_clean, latlon, tiprates, minlat_focal=-10, maxlat_focal=10, minlon_focal=-100, maxlon_focal=-50)
+compare_rook <- function(phy, latlon, tiprates, minlat_focal, maxlat_focal, minlon_focal, maxlon_focal, rates=c("turnover", "net.div", "speciation", "extinct.frac", "extinction"), ndraws=100, maxdepth=Inf, mincomparisons=1) {
+	lat_mid <- mean(c(maxlat_focal,minlat_focal))
+	lon_mid <- mean(c(maxlon_focal, minlon_focal))
+	lat_step <- maxlat_focal-minlat_focal
+	lon_step <- maxlon_focal-minlon_focal
+	north <- compare_cells_coarse(phy, latlon, tiprates, minlat_focal, maxlat_focal, minlon_focal, maxlon_focal, minlat_target=minlat_focal+lat_step, maxlat_target=maxlat_focal+lat_step, minlon_target=minlon_focal, maxlon_target=maxlon_focal, rates=rates, ndraws=ndraws, maxdepth=maxdepth, mincomparisons=mincomparisons)
+	south <- compare_cells_coarse(phy, latlon, tiprates, minlat_focal, maxlat_focal, minlon_focal, maxlon_focal, minlat_target=minlat_focal-lat_step, maxlat_target=maxlat_focal-lat_step, minlon_target=minlon_focal, maxlon_target=maxlon_focal, rates=rates, ndraws=ndraws, maxdepth=maxdepth, mincomparisons=mincomparisons)
+	east <- compare_cells_coarse(phy, latlon, tiprates, minlat_focal, maxlat_focal, minlon_focal, maxlon_focal, minlat_target=minlat_focal, maxlat_target=maxlat_focal, minlon_target=minlon_focal+lon_step, maxlon_target=maxlon_focal+lon_step, rates=rates, ndraws=ndraws, maxdepth=maxdepth, mincomparisons=mincomparisons)
+	west <- compare_cells_coarse(phy, latlon, tiprates, minlat_focal, maxlat_focal, minlon_focal, maxlon_focal, minlat_target=minlat_focal, maxlat_target=maxlat_focal, minlon_target=minlon_focal-lon_step, maxlon_target=maxlon_focal-lon_step, rates=rates, ndraws=ndraws, maxdepth=maxdepth, mincomparisons=mincomparisons)
+	return(rbind(north, south, east, west))
+
+}
