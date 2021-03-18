@@ -118,14 +118,14 @@ compare_rook <- function(cell_bounds, phy, latlon, tiprates, rates=c("turnover",
 	west <- compare_cells_coarse(phy, latlon, tiprates, minlat_focal, maxlat_focal, minlon_focal, maxlon_focal, minlat_target=minlat_focal, maxlat_target=maxlat_focal, minlon_target=minlon_focal-lon_step, maxlon_target=maxlon_focal-lon_step, rates=rates, ndraws=ndraws, maxdepth=maxdepth, mincomparisons=mincomparisons)
 	direction_east_minus_west <- east-west
 	direction_north_minus_south <- north-south
-	tidy_df <- rbind(north, south, east, west, direction_east_minus_west, direction_north_minus_south)
+	tidy_df <- as.data.frame(rbind(north, south, east, west, direction_east_minus_west, direction_north_minus_south))
 	tidy_df$direction <- c("north", "south", "east", "west", "east_minus_west", "north_minus_south")
 	tidy_df$lat_mid=lat_mid
 	tidy_df$lon_mid=lon_mid
 	tidy_df$lat_step=lat_step
 	tidy_df$lon_step=lon_step
-	
-	return(list(tidy_df=tidy_df, lat_mid=lat_mid, lon_mid=lon_mid, lat_step=lat_step, lon_step=lon_step, north=north, south=south, east=east, west=west, direction_east_minus_west=direction_east_minus_west, direction_north_minus_south=direction_north_minus_south))
+	return(tidy_df)
+	#return(list(tidy_df=tidy_df, lat_mid=lat_mid, lon_mid=lon_mid, lat_step=lat_step, lon_step=lon_step, north=north, south=south, east=east, west=west, direction_east_minus_west=direction_east_minus_west, direction_north_minus_south=direction_north_minus_south))
 }
 
 compute_sampling_grid <- function(latbins=10, lonbins=10, minlat=-70, maxlat=70, minlon=-170, maxlon=170) {
