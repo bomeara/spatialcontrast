@@ -34,7 +34,9 @@ compare_cells_fine <- function(phy, latlon, tiprates, minlat_focal, maxlat_focal
 	global_df <- data.frame()
 	phy_pruned <- ape::keep.tip(phy, taxa_to_keep)
 	target_pruned <- target_presence[taxa_to_keep]
+	sink("/dev/null")
 	comparisons <- sisters::sis_format_comparison(sisters=sisters::sis_get_sisters(phy_pruned, ncores=1), trait=target_pruned, phy=phy_pruned)
+	sink()
 	if(length(comparisons$node)<mincomparisons) {
 		warning("Not enough sister pairs to compare these cells")
 		means <- as.data.frame(t(rep(NA, length(rates))))
@@ -45,8 +47,8 @@ compare_cells_fine <- function(phy, latlon, tiprates, minlat_focal, maxlat_focal
 	}
 	heights <- phytools::nodeHeights(phy_pruned)
 	depths <- max(heights) - heights
-	cat("\n")
-	pb = utils::txtProgressBar(min = 0, max = length(comparisons$node), initial = 0) 
+	#cat("\n")
+	#pb = utils::txtProgressBar(min = 0, max = length(comparisons$node), initial = 0) 
 	for (sister_index in seq_along(comparisons$node)) {
 		left <- comparisons$left[sister_index][[1]]
 		right <- comparisons$right[sister_index][[1]]
@@ -62,7 +64,7 @@ compare_cells_fine <- function(phy, latlon, tiprates, minlat_focal, maxlat_focal
 				}
 			}
 		}
-		setTxtProgressBar(pb,sister_index)
+		#setTxtProgressBar(pb,sister_index)
 	}
 	return(global_df)
 }
@@ -116,7 +118,14 @@ compare_rook <- function(cell_bounds, phy, latlon, tiprates, rates=c("turnover",
 	west <- compare_cells_coarse(phy, latlon, tiprates, minlat_focal, maxlat_focal, minlon_focal, maxlon_focal, minlat_target=minlat_focal, maxlat_target=maxlat_focal, minlon_target=minlon_focal-lon_step, maxlon_target=maxlon_focal-lon_step, rates=rates, ndraws=ndraws, maxdepth=maxdepth, mincomparisons=mincomparisons)
 	direction_east_minus_west <- east-west
 	direction_north_minus_south <- north-south
-	return(list(lat_mid=lat_mid, lon_mid=lon_mid, lat_step=lat_step, lon_step=lon_step, north=north, south=south, east=east, west=west, direction_east_minus_west=direction_east_minus_west, direction_north_minus_south=direction_north_minus_south))
+	tidy_df <- rbind(north, south, east, west, direction_east_minus_west, direction_north_minus_south)
+	tidy_df$direction <- c("north", "south", "east", "west", "east_minus_west", "north_minus_south")
+	tidy_df$lat_mid=lat_mid
+	tidy_df$lon_mid=lon_mid
+	tidy_df$lat_step=lat_step
+	tidy_df$lon_step=lon_step
+	
+	return(list(tidy_df=tidy_df, lat_mid=lat_mid, lon_mid=lon_mid, lat_step=lat_step, lon_step=lon_step, north=north, south=south, east=east, west=west, direction_east_minus_west=direction_east_minus_west, direction_north_minus_south=direction_north_minus_south))
 }
 
 compute_sampling_grid <- function(latbins=10, lonbins=10, minlat=-70, maxlat=70, minlon=-170, maxlon=170) {
@@ -136,4 +145,9 @@ compute_sampling_grid <- function(latbins=10, lonbins=10, minlat=-70, maxlat=70,
 compare_all_grid <- function(phy, latlon, tiprates, sample_grid=compute_sampling_grid(), ncores=2, rates=c("turnover", "net.div", "speciation", "extinct.frac", "extinction"), ndraws=100, maxdepth=Inf, mincomparisons=3) {
 	results <- pbapply::pbapply(sample_grid, MARGIN=1, FUN=compare_rook, phy=phy, latlon=latlon, tiprates=tiprates, rates=rates, ndraws=ndraws, maxdepth=Inf, mincomparisons=mincomparisons, cl=ncores)
 	return(results)
+}
+
+#from compare_all_grid
+synthesize_results <- function(results) {
+
 }
