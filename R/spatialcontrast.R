@@ -45,6 +45,8 @@ compare_cells_fine <- function(phy, latlon, tiprates, minlat_focal, maxlat_focal
 	}
 	heights <- phytools::nodeHeights(phy_pruned)
 	depths <- max(heights) - heights
+	cat("\n")
+	pb = utils::txtProgressBar(min = 0, max = length(comparisons$node), initial = 0) 
 	for (sister_index in seq_along(comparisons$node)) {
 		left <- comparisons$left[sister_index][[1]]
 		right <- comparisons$right[sister_index][[1]]
@@ -60,6 +62,7 @@ compare_cells_fine <- function(phy, latlon, tiprates, minlat_focal, maxlat_focal
 				}
 			}
 		}
+		setTxtProgressBar(pb,sister_index)
 	}
 	return(global_df)
 }
@@ -69,6 +72,7 @@ compare_cells_coarse <- function(phy, latlon, tiprates, minlat_focal, maxlat_foc
 	fine_results <- compare_cells_fine(phy, latlon, tiprates, minlat_focal, maxlat_focal, minlon_focal, maxlon_focal, minlat_target, maxlat_target, minlon_target, maxlon_target, rates, ndraws, maxdepth)
 	coarse_results <- apply(subset(fine_results, select=c(paste0(rates, "_mean_target_minus_focal"))), 2, mean)
 	coarse_results["npairs"] <- nrow(fine_results)
+	return(coarse_results)
 }
 
 # Get mean and sd of difference across all pairs in a sister comparison of target (state 1, right) minus focal (state 0, left)
@@ -95,8 +99,13 @@ compare_two_clades <- function(left, right, tiprates, phy_pruned, rates=c("turno
 	return(summary_results)
 }
 
-#' compare_rook(phy_clean, latlon, tiprates, minlat_focal=-10, maxlat_focal=10, minlon_focal=-100, maxlon_focal=-50)
-compare_rook <- function(phy, latlon, tiprates, minlat_focal, maxlat_focal, minlon_focal, maxlon_focal, rates=c("turnover", "net.div", "speciation", "extinct.frac", "extinction"), ndraws=100, maxdepth=Inf, mincomparisons=1) {
+#' compare_rook(cell_bounds = c(minlat_focal=-10, maxlat_focal=10, minlon_focal=-100, maxlon_focal=-50), phy=phy_clean, latlon=latlon, tiprates=tiprates)
+compare_rook <- function(cell_bounds, phy, latlon, tiprates, rates=c("turnover", "net.div", "speciation", "extinct.frac", "extinction"), ndraws=100, maxdepth=Inf, mincomparisons=3) {
+	minlat_focal <- unname(cell_bounds["minlat_focal"])
+	maxlat_focal <- unname(cell_bounds["maxlat_focal"])
+	minlon_focal <- unname(cell_bounds["minlon_focal"])
+	maxlon_focal <- unname(cell_bounds["maxlon_focal"])
+
 	lat_mid <- mean(c(maxlat_focal,minlat_focal))
 	lon_mid <- mean(c(maxlon_focal, minlon_focal))
 	lat_step <- maxlat_focal-minlat_focal
@@ -105,6 +114,26 @@ compare_rook <- function(phy, latlon, tiprates, minlat_focal, maxlat_focal, minl
 	south <- compare_cells_coarse(phy, latlon, tiprates, minlat_focal, maxlat_focal, minlon_focal, maxlon_focal, minlat_target=minlat_focal-lat_step, maxlat_target=maxlat_focal-lat_step, minlon_target=minlon_focal, maxlon_target=maxlon_focal, rates=rates, ndraws=ndraws, maxdepth=maxdepth, mincomparisons=mincomparisons)
 	east <- compare_cells_coarse(phy, latlon, tiprates, minlat_focal, maxlat_focal, minlon_focal, maxlon_focal, minlat_target=minlat_focal, maxlat_target=maxlat_focal, minlon_target=minlon_focal+lon_step, maxlon_target=maxlon_focal+lon_step, rates=rates, ndraws=ndraws, maxdepth=maxdepth, mincomparisons=mincomparisons)
 	west <- compare_cells_coarse(phy, latlon, tiprates, minlat_focal, maxlat_focal, minlon_focal, maxlon_focal, minlat_target=minlat_focal, maxlat_target=maxlat_focal, minlon_target=minlon_focal-lon_step, maxlon_target=maxlon_focal-lon_step, rates=rates, ndraws=ndraws, maxdepth=maxdepth, mincomparisons=mincomparisons)
-	return(list(north, south, east, west))
+	direction_east_minus_west <- east-west
+	direction_north_minus_south <- north-south
+	return(list(lat_mid=lat_mid, lon_mid=lon_mid, lat_step=lat_step, lon_step=lon_step, north=north, south=south, east=east, west=west, direction_east_minus_west=direction_east_minus_west, direction_north_minus_south=direction_north_minus_south))
+}
 
+compute_sampling_grid <- function(latbins=10, lonbins=10, minlat=-70, maxlat=70, minlon=-170, maxlon=170) {
+	lat_breaks <- seq(from=minlat, to=maxlat, length.out=1+latbins)
+	lon_breaks <- seq(from=minlon, to=maxlon, length.out=1+lonbins)
+	indices_matrix <- expand.grid(lat_index=sequence(latbins), lon_index=sequence(lonbins))
+	focal_bounds <- data.frame(
+		minlat_focal=lat_breaks[indices_matrix$lat_index], 
+		maxlat_focal=lat_breaks[1+indices_matrix$lat_index],
+		minlon_focal=lon_breaks[indices_matrix$lon_index], 
+		maxlon_focal=lon_breaks[1+indices_matrix$lon_index]
+	)
+	return(focal_bounds)
+}
+
+#' results <- compare_all_grid(phy=phy_clean, latlon=latlon, tiprates=tiprates, sample_grid=compute_sampling_grid(), ncores=parallel::detectCores())
+compare_all_grid <- function(phy, latlon, tiprates, sample_grid=compute_sampling_grid(), ncores=2, rates=c("turnover", "net.div", "speciation", "extinct.frac", "extinction"), ndraws=100, maxdepth=Inf, mincomparisons=3) {
+	results <- pbapply::pbapply(sample_grid, MARGIN=1, FUN=compare_rook, phy=phy, latlon=latlon, tiprates=tiprates, rates=rates, ndraws=ndraws, maxdepth=Inf, mincomparisons=mincomparisons, cl=ncores)
+	return(results)
 }
