@@ -128,7 +128,7 @@ compare_rook <- function(cell_bounds, phy, latlon, tiprates, rates=c("turnover",
 	#return(list(tidy_df=tidy_df, lat_mid=lat_mid, lon_mid=lon_mid, lat_step=lat_step, lon_step=lon_step, north=north, south=south, east=east, west=west, direction_east_minus_west=direction_east_minus_west, direction_north_minus_south=direction_north_minus_south))
 }
 
-compute_sampling_grid <- function(latbins=10, lonbins=10, minlat=-70, maxlat=70, minlon=-170, maxlon=170) {
+compute_sampling_grid <- function(latbins=25, lonbins=25, minlat=-70, maxlat=70, minlon=-170, maxlon=170) {
 	lat_breaks <- seq(from=minlat, to=maxlat, length.out=1+latbins)
 	lon_breaks <- seq(from=minlon, to=maxlon, length.out=1+lonbins)
 	indices_matrix <- expand.grid(lat_index=sequence(latbins), lon_index=sequence(lonbins))
@@ -148,6 +148,28 @@ compare_all_grid <- function(phy, latlon, tiprates, sample_grid=compute_sampling
 }
 
 #from compare_all_grid
-synthesize_results <- function(results) {
+synthesize_results <- function(results, rates=c("turnover", "net.div", "speciation", "extinct.frac", "extinction")) {
+	is.bad <- function(x) {
+		return(any(is.na(x[,1])))
+	}
+	bad_ones <- which(unlist(lapply(results, is.bad)))
+	results_good <- dplyr::bind_rows(results[-bad_ones])
+	rownames(results_good) <- NULL
+	for (i in seq_along(rates)) {
+		results_good[,paste0(rates[i], "_normalized")] <- results_good[,paste0(rates[i], "_mean_target_minus_focal")]/max(abs(results_good[,paste0(rates[i], "_mean_target_minus_focal")]))
+	}
+	return(results_good)
+}
 
+plot_results_good <- function(results_good, rates=c("turnover", "net.div", "speciation", "extinct.frac", "extinction")) {
+	scale <- 0.9*min(c(results_good$lat_step, results_good$lon_step))
+	eastwest <- subset(results_good,direction=="east_minus_west")
+	northsouth <- subset(results_good,direction=="north_minus_south")
+	for (i in seq_along(rates)) {
+		plot(eastwest$lon_mid, eastwest$lat_mid,  asp=1, main=rates[i], type="n")
+		arrows(x0=eastwest$lon_mid, y0=eastwest$lat_mid, x1=eastwest$lon_mid+scale*eastwest[,paste0(rates[i], "_normalized")], length=0)
+		arrows(x0=northsouth$lon_mid, y0=northsouth$lat_mid, y1=northsouth$lat_mid+scale*northsouth[,paste0(rates[i], "_normalized")], length=0)
+		points(eastwest$lon_mid, eastwest$lat_mid, pch=21, col="red")
+
+	}
 }
