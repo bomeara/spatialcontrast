@@ -149,12 +149,17 @@ compare_all_grid <- function(phy, latlon, tiprates, sample_grid=compute_sampling
 
 #from compare_all_grid
 synthesize_results <- function(results, rates=c("turnover", "net.div", "speciation", "extinct.frac", "extinction")) {
-	is.bad <- function(x) {
-		return(any(is.na(x[,1])))
+	for (i in seq_along(results)) {
+		results[[i]]$cell_number <- i
 	}
-	bad_ones <- which(unlist(lapply(results, is.bad)))
-	results_good <- dplyr::bind_rows(results[-bad_ones])
+	# is.bad <- function(x) {
+	# 	return(any(is.na(x[,1])))
+	# }
+	# bad_ones <- which(unlist(lapply(results, is.bad)))
+	# results_good <- dplyr::bind_rows(results[-bad_ones])
+	results_good <- dplyr::bind_rows(results)
 	rownames(results_good) <- NULL
+	results_good <- subset(results_good, !is.na(results_good[,1]))
 	for (i in seq_along(rates)) {
 		results_good[,paste0(rates[i], "_normalized")] <- results_good[,paste0(rates[i], "_mean_target_minus_focal")]/max(abs(results_good[,paste0(rates[i], "_mean_target_minus_focal")]))
 	}
@@ -165,11 +170,18 @@ plot_results_good <- function(results_good, rates=c("turnover", "net.div", "spec
 	scale <- 0.9*min(c(results_good$lat_step, results_good$lon_step))
 	eastwest <- subset(results_good,direction=="east_minus_west")
 	northsouth <- subset(results_good,direction=="north_minus_south")
-	for (i in seq_along(rates)) {
-		plot(eastwest$lon_mid, eastwest$lat_mid,  asp=1, main=rates[i], type="n")
-		arrows(x0=eastwest$lon_mid, y0=eastwest$lat_mid, x1=eastwest$lon_mid+scale*eastwest[,paste0(rates[i], "_normalized")], length=0)
-		arrows(x0=northsouth$lon_mid, y0=northsouth$lat_mid, y1=northsouth$lat_mid+scale*northsouth[,paste0(rates[i], "_normalized")], length=0)
-		points(eastwest$lon_mid, eastwest$lat_mid, pch=21, col="red")
+	valid_cells <- unique(eastwest$cell_number)[unique(eastwest$cell_number) %in% unique(northsouth$cell_number)]
+	for(rate_index in seq_along(rates)) {
+		plot(results_good$lon_mid, results_good$lat_mid,  asp=1, main=rates[rate_index], type="n")
 
+		for (cell_index in seq_along(valid_cells)) {
+			cell_df <- subset(results_good, cell_number==valid_cells[cell_index])
+			eastwest_index <- which(cell_df$direction=="east_minus_west")
+			northsouth_index <- which(cell_df$direction=="north_minus_south")
+
+			segments(x0=cell_df$lon_mid[1], y0=cell_df$lat_mid[1], x1=cell_df$lon_mid[1]+scale*cell_df[eastwest_index,paste0(rates[rate_index], "_normalized")], y1=cell_df$lat_mid[1]+scale*cell_df[northsouth_index,paste0(rates[rate_index], "_normalized")])
+			#points(eastwest$lon_mid, eastwest$lat_mid, pch=21, col="red")
+
+		}
 	}
 }
