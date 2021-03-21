@@ -1,0 +1,4 @@
+load("inst/data/magnoliidae.rda")
+source("R/spatialcontrast.R")
+latlon <- cluster_latlon(latlon)
+results <- compare_clusters(phy=phy_clean, latlon, tiprates)
