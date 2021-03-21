@@ -79,7 +79,7 @@ compare_clusters <- function(phy, latlon, tiprates, rates=c("turnover", "net.div
 					print(c(focal, target))
 				}
 				print(coarse_df)
-				all_results[[focal, target]] <- list(coarse=coarse_df, fine=global_df)
+				all_results[c(focal, target)] <- global_df
 
 			}
 		}
@@ -94,7 +94,12 @@ summarize_cluster_results <- function(results, latlon, rates=c("turnover", "net.
 		rate_matrix <- matrix(NA, nrow=nrow(results), ncol=ncol(results))
 		for (row_index in sequence(nrow(results))) {
 			for (col_index in sequence(ncol(results))) {
-				try(rate_matrix[row_index, col_index]<- unname(results[c(row_index,col_index)][[2]]$coarse[paste0(rates[rate_index], "_mean_target_minus_focal")]), silent=TRUE)
+				global_df <- NULL
+				try(global_df <- results[c(row_index,col_index)])
+				if(!is.null(global)df) {
+					try(coarse_df <- apply(subset(global_df, select=c(paste0(rates, "_mean_target_minus_focal"))), 2, mean))
+					try(rate_matrix[row_index, col_index]<- unname(coarse_df[paste0(rates[rate_index], "_mean_target_minus_focal")]), silent=TRUE)
+				}
 			}
 		}
 		rate_list[[rate_index]] <- rate_matrix
