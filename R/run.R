@@ -10,7 +10,9 @@ for (cluster_index in seq_along(nclusters_vector)) {
     summaries <- summarize_cluster_results(results)
     nclusters_results[[cluster_index]] <- list(latlon=latlon_new, results=results, summaries=summaries)
     pdf(file=paste0("inst/data/cluster_", nclusters_vector[cluster_index], ".pdf"))
-    plot_map(latlon=nclusters_results[[cluster_index]]$latlon, summaries=nclusters_results[[cluster_index]]$summaries, "net.div")
+    for(individual_cluster in sequence(nclusters_vector[cluster_index])) {
+        plot_map(latlon=nclusters_results[[cluster_index]]$latlon, summaries=nclusters_results[[cluster_index]]$summaries, focal_rate="net.div", focal_cluster=individual_cluster)
+    }
     dev.off()
 }
 save(nclusters_results, file="inst/data/nclusters_results.rda")
