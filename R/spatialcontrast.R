@@ -429,3 +429,27 @@ plot_map <- function(latlon, summaries, focal_rate="net.div", focal_cluster=1) {
 	print(mp)
 }
 
+
+plot_map_signif <- function(latlon, summaries, focal_rate="net.div") {
+	library(ggplot2)
+	cluster_info <- apply(summaries$t_test_estimate[focal_rate][[1]], 2, stats::t.test)
+	limits <- as.data.frame(lapply(cluster_info, "[[", "conf.int"))
+	centers <- simplify2array(lapply(cluster_info, "[[", "estimate"))
+	mp <- NULL
+	mapWorld <- ggplot2::borders("world", colour="gray50", fill="gray50") # create a layer of borders
+	mp <- ggplot2::ggplot() + mapWorld
+	#values <- summaries$t_test_estimate[focal_rate][[1]][focal_cluster,]
+	latlon$values_to_plot <- unlist(unname(limits[1,latlon$cluster]))
+	mp <- mp + geom_point(data=latlon, mapping=aes(x=lon, y=lat, col=values_to_plot, size=1.5)) + scale_colour_gradient2(low="blue", high="red", limits=range(limits), na.value="black", name=paste0("Diff in ",focal_rate)) 
+	
+	latlon$values_to_plot <- unlist(unname(limits[2,latlon$cluster]))
+	mp <- mp + geom_point(data=latlon, mapping=aes(x=lon, y=lat, col=values_to_plot, size=1.1)) + scale_colour_gradient2(low="blue", high="red", limits=range(limits), na.value="black", name=paste0("Diff in ",focal_rate)) 
+
+	latlon$values_to_plot <- unlist(unname(centers[latlon$cluster]))
+	mp <- mp + geom_point(data=latlon, mapping=aes(x=lon, y=lat, col=values_to_plot, size=1)) + scale_colour_gradient2(low="blue", high="red", limits=range(limits), na.value="black", name=paste0("Diff in ",focal_rate)) 
+
+
+	local_latlon <- latlon[!duplicated(latlon$cluster),]
+	#mp <- mp + geom_label(aes(x=cluster_lon, y=cluster_lat, label=cluster), data=local_latlon)
+	print(mp)
+}
