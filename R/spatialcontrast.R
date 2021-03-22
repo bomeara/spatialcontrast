@@ -26,9 +26,12 @@ present_in_cluster <- function(phy, latlon, cluster_id) {
 
 
 
-cluster_latlon <- function(latlon, mean_points_per_cluster=3000) {
+cluster_latlon <- function(latlon, mean_points_per_cluster=10000, nclusters=NULL) {
 	latlon_only <- latlon[,c("lat", "lon")]
-	clusters <- stats::kmeans(latlon_only, centers=floor(nrow(latlon)/mean_points_per_cluster), nstart=20, iter.max=100)
+	if(is.null(nclusters)){
+		 nclusters<-floor(nrow(latlon)/mean_points_per_cluster)
+	}
+	clusters <- stats::kmeans(latlon_only, centers=nclusters, nstart=20, iter.max=100)
 	latlon$cluster <- clusters$cluster
 	latlon$cluster_lat <- clusters$centers[latlon$cluster,1]
 	latlon$cluster_lon <- clusters$centers[latlon$cluster,2]
@@ -77,9 +80,11 @@ compare_clusters <- function(phy, latlon, tiprates, rates=c("turnover", "net.div
 					coarse_df <- apply(subset(global_df, select=c(paste0(rates, "_mean_target_minus_focal"))), 2, mean)
 					#coarse_df["npairs"] <- nrow(coarse_df)
 					print(c(focal, target))
+					print(coarse_df)
+
 				}
-				print(coarse_df)
-				all_results[c(focal, target)] <- global_df
+				#print(coarse_df)
+				all_results[[focal, target]] <- global_df
 
 			}
 		}
@@ -90,22 +95,64 @@ compare_clusters <- function(phy, latlon, tiprates, rates=c("turnover", "net.div
 
 summarize_cluster_results <- function(results, latlon, rates=c("turnover", "net.div", "speciation", "extinct.frac", "extinction")) {
 	rate_list <- list(rep(NA, length(rates)))
+	sign_test_p <- list(rep(NA, length(rates)))
+	t_test_p<- list(rep(NA, length(rates)))
+	t_test_estimate<- list(rep(NA, length(rates)))
+	t_test_lower_ci <- list(rep(NA, length(rates)))
+	t_test_upper_ci <- list(rep(NA, length(rates)))
+	n_comparisons_list <- list(rep(NA, length(rates)))
+
+
 	for (rate_index in seq_along(rates)) {
 		rate_matrix <- matrix(NA, nrow=nrow(results), ncol=ncol(results))
+		sign_test_matrix <- matrix(NA, nrow=nrow(results), ncol=ncol(results))
+		t_test_matrix <- matrix(NA, nrow=nrow(results), ncol=ncol(results))
+		t_test_estimate_matrix <- matrix(NA, nrow=nrow(results), ncol=ncol(results))
+		t_test_lower_ci_matrix <- matrix(NA, nrow=nrow(results), ncol=ncol(results))
+		t_test_upper_ci_matrix <- matrix(NA, nrow=nrow(results), ncol=ncol(results))
+		n_comparisons_matrix <- matrix(NA, nrow=nrow(results), ncol=ncol(results))
 		for (row_index in sequence(nrow(results))) {
 			for (col_index in sequence(ncol(results))) {
 				global_df <- NULL
-				try(global_df <- results[c(row_index,col_index)])
-				if(!is.null(global)df) {
-					try(coarse_df <- apply(subset(global_df, select=c(paste0(rates, "_mean_target_minus_focal"))), 2, mean))
+				try(global_df <- results[[row_index,col_index]], silent=TRUE)
+				if(!is.null(global_df)) {
+					count_positive <- count_total <- raw_values <- t_test_result <- NA
+					coarse_df <- NULL
+					
+					try(coarse_df <- apply(subset(global_df, select=c(paste0(rates[rate_index], "_mean_target_minus_focal"))), 2, mean), silent=TRUE)
+					try(count_positive <- sum(sign(results[[row_index,col_index]][,paste0(rates[rate_index], "_mean_target_minus_focal")])>0), silent=TRUE)
+					try(count_total <- nrow(global_df), silent=TRUE)
+					try(raw_values <- results[[row_index,col_index]][,paste0(rates[rate_index], "_mean_target_minus_focal")], silent=TRUE)
+					try(sign_test_matrix[row_index, col_index] <- stats::binom.test(x=count_positive, n=count_total, p=0.5, alternative="two.sided")$p.value, silent=TRUE)
+					try(t_test_result <- stats::t.test(raw_values, alternative="two.sided"), silent=TRUE)
+					try(t_test_matrix[row_index, col_index] <- t_test_result$p.value, silent=TRUE)
+					try(t_test_estimate_matrix[row_index, col_index] <- t_test_result$estimate, silent=TRUE)
+					try(t_test_lower_ci_matrix[row_index, col_index] <- t_test_result$conf.int[1], silent=TRUE)
+					try(t_test_upper_ci_matrix[row_index, col_index] <- t_test_result$conf.int[2], silent=TRUE)
 					try(rate_matrix[row_index, col_index]<- unname(coarse_df[paste0(rates[rate_index], "_mean_target_minus_focal")]), silent=TRUE)
+					try(n_comparisons_matrix[row_index, col_index] <- nrow(global_df), silent=TRUE)
 				}
 			}
 		}
 		rate_list[[rate_index]] <- rate_matrix
+		sign_test_p[[rate_index]] <- sign_test_matrix
+		t_test_p[[rate_index]] <- t_test_matrix
+		t_test_estimate[[rate_index]] <- t_test_estimate_matrix
+		t_test_lower_ci[[rate_index]] <- t_test_lower_ci_matrix
+		t_test_upper_ci[[rate_index]] <- t_test_upper_ci_matrix
+		n_comparisons_list[[rate_index]] <- n_comparisons_matrix
+
+
 	}
 	names(rate_list) <- rates
-	return(rate_list)
+	names(sign_test_p) <- rates
+	names(t_test_p) <- rates
+	names(t_test_estimate) <- rates
+	names(t_test_lower_ci) <- rates
+	names(t_test_upper_ci) <- rates
+	names(n_comparisons_list) <- rates
+
+	return(list(rate_difference=rate_list, sign_test_p=sign_test_p, t_test_p=t_test_p, t_test_estimate=t_test_estimate, t_test_lower_ci=t_test_lower_ci, t_test_upper_ci=t_test_upper_ci,n_comparisons=n_comparisons_list))
 }
 
 sanitize_comparisons <- function(comparisons) {
