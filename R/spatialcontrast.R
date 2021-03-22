@@ -79,7 +79,7 @@ compare_clusters <- function(phy, latlon, tiprates, rates=c("turnover", "net.div
 					}
 					coarse_df <- apply(subset(global_df, select=c(paste0(rates, "_mean_target_minus_focal"))), 2, mean)
 					#coarse_df["npairs"] <- nrow(coarse_df)
-					print(c(focal, target))
+					print(c(focal, target, max(latlon$cluster)))
 					print(coarse_df)
 
 				}
@@ -414,7 +414,18 @@ dynamic_plot <- function(results, rates=c("turnover", "net.div", "speciation", "
 
 		}
 	}
-
-
-
 }
+
+plot_map <- function(latlon, summaries, focal_rate="net.div", focal_cluster=1) {
+	library(ggplot2)
+	mp <- NULL
+	mapWorld <- ggplot2::borders("world", colour="gray50", fill="gray50") # create a layer of borders
+	mp <- ggplot2::ggplot() + mapWorld
+	values <- summaries$t_test_estimate[focal_rate][[1]][focal_cluster,]
+	latlon$values_to_plot <- values[latlon$cluster]
+	mp <- mp + geom_point(data=latlon, mapping=aes(x=lon, y=lat, col=values_to_plot)) + scale_colour_gradient2(low="blue", high="red", na.value="black", name=paste0("Diff in ",focal_rate)) + ggtitle(paste0(focal_rate, " difference for cluster ", focal_cluster))
+	local_latlon <- latlon[!duplicated(latlon$cluster),]
+	mp <- mp + geom_label(aes(x=cluster_lon, y=cluster_lat, label=cluster), data=local_latlon)
+	print(mp)
+}
+
