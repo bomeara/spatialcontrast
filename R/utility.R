@@ -19,4 +19,5 @@ for (i in seq_along(phy_clean$tip.label)) {
 }
 latlon <- data.frame(taxon=latlon$taxon, taxon_full=latlon$V1, lon=latlon$V4, lat=latlon$V3)
 tiprates <- read.csv("../8_rates/magnoliidae_tip_rates.csv")
+tiprates$taxon <- gsub(" ", "_", tiprates$taxon)
 save(phy_taxized, phy_clean, latlon, tiprates, file="/Users/bomeara/Documents/MyDocuments/GitClones/spatialcontrast/inst/data/magnoliidae.rda")
