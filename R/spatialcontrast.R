@@ -44,7 +44,9 @@ cluster_latlon <- function(latlon, mean_points_per_cluster=10000, nclusters=NULL
 	return(latlon)
 }
 
-
+#' Compare spatial clusters
+#' 
+#' This is the main workhorse function: it compares pairs of clusters by subsampling a tree to only taxa present in at least one of those areas. Then it uses the sisters package to find all bifurcations where all taxa in one branch are in one area and all taxa in the other branch are in the other area (if one taxon is in both areas, it doesn't use this comparison). It takes the rate estimate for a taxon in the "target" cluster branch and subtracts the rate estimate for a taxon in the "focal" cluster branch (the columns and rows of the output matrix, respectively). If at least one of the clades being compared has more than one taxon, taxa are repeatedly sampled at random.
 compare_clusters <- function(phy, latlon, tiprates, rates=c("turnover", "net.div", "speciation", "extinct.frac", "extinction"), ndraws=100, maxdepth=Inf, mincomparisons=3) {
 	coarse_rates <- list()
 	fine_rates <- list()
