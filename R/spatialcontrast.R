@@ -47,6 +47,16 @@ cluster_latlon <- function(latlon, mean_points_per_cluster=10000, nclusters=NULL
 #' Compare spatial clusters
 #' 
 #' This is the main workhorse function: it compares pairs of clusters by subsampling a tree to only taxa present in at least one of those areas. Then it uses the sisters package to find all bifurcations where all taxa in one branch are in one area and all taxa in the other branch are in the other area (if one taxon is in both areas, it doesn't use this comparison). It takes the rate estimate for a taxon in the "target" cluster branch and subtracts the rate estimate for a taxon in the "focal" cluster branch (the columns and rows of the output matrix, respectively). If at least one of the clades being compared has more than one taxon, taxa are repeatedly sampled at random.
+#' 
+#' @param phy Phylogeny in ape phylo format
+#' @param latlon Data.frame with fields for taxon, lon, lat and perhaps other fields. Expects a cluster field giving the cluster id.
+#' @param tiprates Data.frame with fields for taxon and rates at the tips
+#' @param rates Character vector giving the names for the rate columns in tiprates
+#' @param ndraws If at least one of the two clades being compared has more than one species, how many times to sample comparisons at random
+#' @param maxdepth If finite, only compare clades that split from each other at that time point or younger
+#' @param mincomparisons Only compare clusters if there are at least that many independent pairs per cluster
+#' @return A 2D list with comparisons FROM each cluster (rows) TO each cluster (columns). Each element is a data.frame with all the comparisons between each pair of regions
+#' @export
 compare_clusters <- function(phy, latlon, tiprates, rates=c("turnover", "net.div", "speciation", "extinct.frac", "extinction"), ndraws=100, maxdepth=Inf, mincomparisons=3) {
 	coarse_rates <- list()
 	fine_rates <- list()
@@ -100,7 +110,14 @@ compare_clusters <- function(phy, latlon, tiprates, rates=c("turnover", "net.div
 	return(all_results)
 }
 
-
+#' Compute summaries of raw results
+#' 
+#' The compare_clusters() function has a lot of detail: each sister group comparison between each pair of regions. This summarizes it further. It will do a t-test and a sign test on the direction of comparisons between each rate for each pair of regions (it does not do a bonferroni or other correction), get the CI for the t-test value comparison and point estimate, and more
+#' @param results Output list from compare_clusters()
+#' @param latlon Data.frame with fields for taxon, lon, lat and perhaps other fields. Expects a cluster field giving the cluster id.
+#' @param rates Character vector giving the names for the rate columns in tiprates
+#' @return List containing rate_difference, sign_test_p (p-values of the sign test), t_test_p (p-values of the t-test), t_test_estimate (the mean proportion), t_test_lower_ci (the lower 95% CI for the mean proportion), t_test_upper_ci (the upper 95% CI for the mean proportion), n_comparisons_list (the number of comparisons between each cluster pair)
+#' @export
 summarize_cluster_results <- function(results, latlon, rates=c("turnover", "net.div", "speciation", "extinct.frac", "extinction")) {
 	rate_list <- list(rep(NA, length(rates)))
 	sign_test_p <- list(rep(NA, length(rates)))
@@ -187,8 +204,17 @@ sanitize_comparisons <- function(comparisons) {
 }
 
 
-# Get mean and sd of difference across all pairs in a sister comparison of target (state 1, right) minus focal (state 0, left)
+#' Compare rates between a pair of clades
+#' 
+#' Get mean and sd of difference across all pairs in a sister comparison of target (state 1, right) minus focal (state 0, left)
+#' @param focal.taxa Character vector of taxon names in the focal region
+#' @param target.taxa Character vector of taxon names in the target region
 #' @param ndraws how many random pairs of taxa to sample
+#' @param tiprates Data.frame with fields for taxon and rates at the tips
+#' @param phy_pruned Phylogeny in ape phylo format pruned to just the taxa in the focal or target set
+#' @param rates Character vector giving the names for the rate columns in tiprates
+#' @param ndraws If at least one of the two clades being compared has more than one species, how many times to sample comparisons at random
+#' @return Data.frame comparing the pair of taxon sets
 compare_two_clades <- function(focal.taxa, target.taxa, tiprates, phy_pruned, rates=c("turnover", "net.div", "speciation", "extinct.frac", "extinction"), ndraws=100) {
 	tiprates_focal <- tiprates[tiprates$taxon %in% phy_pruned$tip.label[focal.taxa],]
 	tiprates_target <- tiprates[tiprates$taxon %in% phy_pruned$tip.label[target.taxa],]
@@ -211,7 +237,14 @@ compare_two_clades <- function(focal.taxa, target.taxa, tiprates, phy_pruned, ra
 	return(summary_results)
 }
 
-
+#' Plot a map comparing a focal area to every other area
+#' 
+#' @param latlon Data.frame with fields for taxon, lon, lat and perhaps other fields. Expects a cluster field giving the cluster id.
+#' @param summaries Output list from summarize_cluster_results()
+#' @param focal_rate Character string the names for the rate column to plot
+#' @param focal_cluster Integer for the cluster to plot as the focal one
+#' @return Nothing, though it uses print to plot the ggplot2 object
+#' @export
 plot_map <- function(latlon, summaries, focal_rate="net.div", focal_cluster=1) {
 	library(ggplot2)
 	mp <- NULL
@@ -225,7 +258,15 @@ plot_map <- function(latlon, summaries, focal_rate="net.div", focal_cluster=1) {
 	print(mp)
 }
 
-
+#' Plot a map showing different rates with color
+#' 
+#' This computes a t-test comparing a region vs all other regions (this does not use the t-test results from summarize_cluster_results(), other than for getting the median estimate for the comparisons. It then shows the median, lower 95% CI, and upper 95% CI for this region vs all other regions.
+#' 
+#' @param latlon Data.frame with fields for taxon, lon, lat and perhaps other fields. Expects a cluster field giving the cluster id.
+#' @param summaries Output list from summarize_cluster_results()
+#' @param focal_rate Character string the names for the rate column to plot
+#' @return Nothing, though it uses print to plot the ggplot2 object
+#' @export
 plot_map_signif <- function(latlon, summaries, focal_rate="net.div") {
 	library(ggplot2)
 	cluster_info <- apply(summaries$t_test_estimate[focal_rate][[1]], 2, stats::t.test)
