@@ -23,7 +23,6 @@ present_in_cluster <- function(phy, latlon, cluster_id) {
 cluster_latlon <- function(latlon, mean_points_per_cluster=10000, nclusters=NULL, split_traits = c("lat", "lon"), do_scale=TRUE) {
 	for (trait_index in seq_along(split_traits)) {
 		latlon <- latlon[!is.na(latlon[,split_traits[trait_index]]),]	
-
 	}
 	latlon_focal <- latlon[,split_traits]
 	if(do_scale) {
@@ -254,7 +253,7 @@ plot_map <- function(latlon, summaries, focal_rate="net.div", focal_cluster=1) {
 	latlon$values_to_plot <- values[latlon$cluster]
 	mp <- mp + geom_point(data=latlon, mapping=aes(x=lon, y=lat, col=values_to_plot)) + scale_colour_gradient2(low="blue", high="red", na.value="black", name=paste0("Diff in ",focal_rate)) + ggtitle(paste0(focal_rate, " difference for cluster ", focal_cluster))
 	local_latlon <- latlon[!duplicated(latlon$cluster),]
-	mp <- mp + geom_label(aes(x=cluster_lon, y=cluster_lat, label=cluster), data=local_latlon)
+	#mp <- mp + geom_label(aes(x=cluster_lon, y=cluster_lat, label=cluster), data=local_latlon)
 	print(mp)
 }
 
@@ -267,7 +266,7 @@ plot_map <- function(latlon, summaries, focal_rate="net.div", focal_cluster=1) {
 #' @param focal_rate Character string the names for the rate column to plot
 #' @return Nothing, though it uses print to plot the ggplot2 object
 #' @export
-plot_map_signif <- function(latlon, summaries, focal_rate="net.div") {
+plot_map_signif <- function(latlon, summaries, focal_rate="net.div") { # TV: it needs at least 3 clusters or it can't calculate CI
 	library(ggplot2)
 	cluster_info <- apply(summaries$t_test_estimate[focal_rate][[1]], 2, stats::t.test)
 	limits <- as.data.frame(lapply(cluster_info, "[[", "conf.int"))
@@ -287,6 +286,60 @@ plot_map_signif <- function(latlon, summaries, focal_rate="net.div") {
 
 
 	local_latlon <- latlon[!duplicated(latlon$cluster),]
-	mp <- mp + geom_label(aes(x=cluster_lon, y=cluster_lat, label=cluster), data=local_latlon)
+	#mp <- mp + geom_label(aes(x=cluster_lon, y=cluster_lat, label=cluster), data=local_latlon)
 	print(mp)
 }
+
+
+#' Find bioregions (i.e. realm, biomes and ecoregions) from points.
+#' 
+#' @param latlon Data.frame with fields for taxon, lon, lat and perhaps other fields
+#' @return Data.frame with new columns indicating bioregions of each point.
+#' @export
+bioregion_from_points <- function(latlon) {
+  locations.spatial <- sp::SpatialPointsDataFrame(coords=latlon[,c("lon", "lat")], data=latlon)
+  # WWFload is based on speciesgeocodeR; all credit goes to the original authors
+  WWFload <- function(x = NULL) {
+    if (missing(x)) {
+      x <- getwd()
+    }
+    download.file("http://assets.worldwildlife.org/publications/15/files/original/official_teow.zip",
+                  destfile = file.path(x, "wwf_ecoregions.zip"), quiet=TRUE)
+    unzip(file.path(x, "wwf_ecoregions.zip"), exdir = file.path(x, "WWF_ecoregions"))
+    file.remove(file.path(x, "wwf_ecoregions.zip"))
+    wwf <- maptools::readShapeSpatial(file.path(x, "WWF_ecoregions","official","wwf_terr_ecos.shp"))
+    return(wwf)
+  }
+  wwf <- WWFload(tempdir())
+  mappedregions <- sp::over(locations.spatial, wwf)
+  realms <- data.frame(code=c("AA", "AN", "AT", "IM", "NA", "NT", "OC", "PA"), realm=c("Australasia", "Antarctic", "Afrotropics", "IndoMalay", "Nearctic", "Neotropics", "Oceania", "Palearctic"), stringsAsFactors=FALSE)
+  biomes <- c("Tropical & Subtropical Moist Broadleaf Forests", "Tropical & Subtropical Dry Broadleaf Forests", "Tropical & Subtropical Coniferous Forests", "Temperate Broadleaf & Mixed Forests", "Temperate Conifer Forests", "Boreal Forests/Taiga", "Tropical & Subtropical Grasslands, Savannas & Shrubland", "Temperate Grasslands, Savannas & Shrublands", "Flooded Grasslands & Savannas", "Montane Grasslands & Shrublands", "Tundra", "Mediterranean Forests, Woodlands & Scrub", "Deserts & Xeric Shrublands", "Mangroves")
+  latlon$eco_name <- mappedregions$ECO_NAME
+  latlon$biome <- biomes[mappedregions$BIOME]
+  latlon$realm <- NA
+  for (i in sequence(nrow(latlon))) {
+    latlon$realm[i] <- realms$realm[which(realms$code==mappedregions$REALM)]
+    cat("Scoring point", i, "out of",nrow(latlon))
+    cat("\r")
+  }
+  return(latlon)
+}
+
+#' Simple function to create an additional column with cluster number from specified bioregion. (will probably merge this with the one above in a single function later)
+#' 
+#' @param latlon Data.frame output from function bioregion_from_points.
+#' @param bioregion Name of column with bioregion to be numerated.
+#' @return Data.frame with a new column indicating cluster number according to bioregion.
+#' @export
+cluster_bioregion <- function(latlon, bioregion="biome") {
+  latlon <- latlon[!is.na(latlon[,bioregion]),]	
+  bioregion_levels <- levels(as.factor(latlon[,bioregion]))
+  latlon$cluster <- NA
+  for(i in sequence(nrow(latlon))){
+    latlon$cluster[i] <- which(bioregion_levels %in% latlon[,bioregion][i])
+    cat("Scoring point", i, "out of",nrow(latlon))
+    cat("\r")
+  }
+  return(latlon)
+}
+
