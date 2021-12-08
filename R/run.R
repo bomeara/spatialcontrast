@@ -22,19 +22,21 @@
 
 #--------------
 # Test with pre-defined bioregions
- latlon_new <-  cluster_bioregion(bioregion_from_points(latlon))
- results <- compare_clusters(phy=phy_clean, latlon_new, tiprates)
- summaries <- summarize_cluster_results(results)
 
- pdf(file=paste0("inst/data/cluster_test_biomes.pdf"))
- for(individual_cluster in sequence(length(unique(latlon_new$cluster)))) {
-     plot_map(latlon=latlon_new, summaries=summaries, focal_rate="turnover", focal_cluster=individual_cluster)
- }
- dev.off()
+##UNCOMMENT TO RUN
+#  latlon_new <-  cluster_bioregion(bioregion_from_points(latlon))
+#  results <- compare_clusters(phy=phy_clean, latlon_new, tiprates)
+#  summaries <- summarize_cluster_results(results)
 
- pdf(file=paste0("inst/data/cluster_test_biomes_signif.pdf"))
- plot_map_signif(latlon=latlon_new, summaries=summaries, focal_rate="turnover") 
- dev.off()
+#  pdf(file=paste0("inst/data/cluster_test_biomes.pdf"))
+#  for(individual_cluster in sequence(length(unique(latlon_new$cluster)))) {
+#      plot_map(latlon=latlon_new, summaries=summaries, focal_rate="turnover", focal_cluster=individual_cluster)
+#  }
+#  dev.off()
+
+#  pdf(file=paste0("inst/data/cluster_test_biomes_signif.pdf"))
+#  plot_map_signif(latlon=latlon_new, summaries=summaries, focal_rate="turnover") 
+#  dev.off()
 
  
  
